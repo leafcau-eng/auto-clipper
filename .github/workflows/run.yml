@@ -6,6 +6,9 @@ on:
       youtube_url:
         description: 'YouTube URL'
         required: true
+  push:
+    branches:
+      - v2
 
 jobs:
   run:
