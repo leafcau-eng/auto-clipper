@@ -3,12 +3,9 @@ name: Auto Clipper V2
 on:
   workflow_dispatch:
     inputs:
-      youtube_url:
+      url:
         description: 'YouTube URL'
         required: true
-  push:
-    branches:
-      - v2
 
 jobs:
   run:
@@ -16,6 +13,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: v2
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -40,7 +39,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        run: python main.py "${{ github.event.inputs.youtube_url }}"
+        run: python main.py "${{ github.event.inputs.url }}"
 
       - name: Upload clips
         uses: actions/upload-artifact@v3
