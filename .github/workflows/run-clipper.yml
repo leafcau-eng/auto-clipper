@@ -43,7 +43,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        run: python main.py "${{ github.event.inputs.url }}"
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+        run: python main.py "${{ github.event.inputs.url }}" "${{ github.event.inputs.project_id }}"
 
       - name: Upload clips
         uses: actions/upload-artifact@v4
