@@ -25,12 +25,14 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install ffmpeg
-        run: sudo apt-get install -y ffmpeg
-
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
-          pip install yt-dlp requests librosa numpy
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libgl1-mesa-glx libglib2.0-0
+
+      - name: Install Python dependencies
+        run: |
+          pip install yt-dlp requests librosa numpy opencv-python
           pip install git+https://github.com/openai/whisper.git
 
       - name: Run Auto Clipper
