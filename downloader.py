@@ -18,8 +18,7 @@ def download_video(url: str) -> str:
         "quiet": False,
         "extractor_args": {
             "youtube": {
-                "player_client": ["web"],
-                "po_token": ["web+auto"],
+                "player_client": ["mweb"],
             }
         },
     }

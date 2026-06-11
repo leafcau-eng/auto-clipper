@@ -63,12 +63,6 @@ jobs:
         run: |
           pip install yt-dlp requests librosa numpy opencv-python-headless
           pip install git+https://github.com/openai/whisper.git
-          pip install yt-dlp[default]
-          pip install bgutil-ytdlp-pot-provider
-
-      - name: Install bgutil provider
-        run: |
-          npm install -g @imput/bgutil-ytdlp-pot-provider
 
       - name: Run Auto Clipper
         env:
