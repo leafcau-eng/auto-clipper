@@ -1,17 +1,14 @@
 import os
-import json
 import subprocess
-from config import OUTPUT_DIR, CACHE_DIR
 
-# Warna berdasarkan emosi
 EMOTION_COLORS = {
-    "semangat":    "&H0000FFFF",  # Kuning
-    "inspiratif":  "&H0000FFFF",  # Kuning
-    "terkejut":    "&H000000FF",  # Merah
-    "sedih":       "&H00FF6B6B",  # Biru muda
-    "lucu":        "&H0000FF00",  # Hijau
-    "marah":       "&H000000FF",  # Merah
-    "default":     "&H00FFFFFF",  # Putih
+    "semangat":   "&H0000FFFF",
+    "inspiratif": "&H0000FFFF",
+    "terkejut":   "&H000000FF",
+    "sedih":      "&H00FF6B6B",
+    "lucu":       "&H0000FF00",
+    "marah":      "&H000000FF",
+    "default":    "&H00FFFFFF",
 }
 
 def get_emotion_color(emotional_trigger: str) -> str:
@@ -24,75 +21,32 @@ def get_emotion_color(emotional_trigger: str) -> str:
     return EMOTION_COLORS["default"]
 
 def burn_subtitles(video_path: str, candidate: dict, output_path: str) -> str:
-    transcript = candidate.get("transcript", "")
-    emotional_trigger = candidate.get("emotional_trigger", "")
-    start = candidate.get("start", 0)
+    segments  = candidate.get("whisper_segments", [])
+    emotional = candidate.get("emotional_trigger", "")
+    clip_start = candidate.get("start", 0)
 
-    if not transcript:
-        print(f"[SUBTITLE] No transcript, skipping subtitles")
+    if not segments:
+        print("[SUBTITLE] No segments, skipping")
         return video_path
 
-    print(f"[SUBTITLE] Generating subtitles...")
-    color = get_emotion_color(emotional_trigger)
-    highlight_color = "&H0000FFFF"  # Kuning untuk highlight aktif
-
-    # Buat SRT dari transcript whisper segments
-    srt_path = output_path.replace(".mp4", ".srt")
-    ass_path = output_path.replace(".mp4", ".ass")
-
-    # Pakai whisper segments kalau ada
-    segments = candidate.get("whisper_segments", [])
-    if segments:
-        _create_srt_from_segments(segments, srt_path, start)
-    else:
-        _create_srt_simple(transcript, srt_path, start, candidate["end"] - start)
-
-    # Convert SRT ke ASS dengan style Hormozi
-    _create_ass_style(srt_path, ass_path, color, highlight_color)
-
-    # Burn ke video
+    print("[SUBTITLE] Generating dynamic word subtitles...")
+    color     = get_emotion_color(emotional)
+    ass_path  = output_path.replace(".mp4", ".ass")
     final_path = output_path.replace(".mp4", "_sub.mp4")
+
+    _create_ass_dynamic(segments, ass_path, color, clip_start)
+
     subprocess.run([
-        "ffmpeg",
-        "-i", video_path,
+        "ffmpeg", "-i", video_path,
         "-vf", f"ass={ass_path}",
-        "-c:a", "aac",
-        "-y",
+        "-c:a", "aac", "-y",
         final_path
     ], check=True)
 
     print(f"[SUBTITLE] Done: {final_path}")
     return final_path
 
-def _create_srt_from_segments(segments, srt_path, offset=0):
-    with open(srt_path, "w", encoding="utf-8") as f:
-        for i, seg in enumerate(segments):
-            start = max(0, seg["start"] - offset)
-            end   = max(0, seg["end"] - offset)
-            text  = seg["text"].strip()
-            f.write(f"{i+1}\n")
-            f.write(f"{_format_time(start)} --> {_format_time(end)}\n")
-            f.write(f"{text}\n\n")
-
-def _create_srt_simple(transcript, srt_path, offset, duration):
-    words = transcript.split()
-    if not words:
-        return
-
-    time_per_word = duration / len(words)
-    chunks = [words[i:i+5] for i in range(0, len(words), 5)]
-
-    with open(srt_path, "w", encoding="utf-8") as f:
-        for i, chunk in enumerate(chunks):
-            start = i * 5 * time_per_word
-            end   = min(start + 5 * time_per_word, duration)
-            text  = " ".join(chunk)
-            f.write(f"{i+1}\n")
-            f.write(f"{_format_time(start)} --> {_format_time(end)}\n")
-            f.write(f"{text}\n\n")
-
-def _create_ass_style(srt_path, ass_path, color, highlight_color):
-    # Header ASS dengan style Hormozi
+def _create_ass_dynamic(segments, ass_path, color, clip_start=0):
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
@@ -100,44 +54,54 @@ PlayResY: 1920
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial Black,90,{color},&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,2,80,80,200,1
+Style: Word,Arial Black,95,{color},&H000000FF,&H00000000,&H90000000,-1,0,0,0,100,100,3,0,1,6,3,5,60,60,960,1
+Style: Highlight,Arial Black,105,&H0000FFFF,&H000000FF,&H00000000,&H90000000,-1,0,0,0,100,100,3,0,1,6,3,5,60,60,960,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
-
-    with open(srt_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
     events = ""
-    blocks = content.strip().split("\n\n")
-    for block in blocks:
-        lines = block.strip().split("\n")
-        if len(lines) < 3:
+
+    for seg in segments:
+        words = seg.get("words", [])
+        if not words:
+            # Fallback segment level
+            start = max(0, seg["start"] - clip_start)
+            end   = max(0, seg["end"] - clip_start)
+            text  = seg["text"].strip().upper()
+            events += f"Dialogue: 0,{_t(start)},{_t(end)},Word,,0,0,0,,{{\\b1\\an5}}{text}\n"
             continue
-        times = lines[1].split(" --> ")
-        if len(times) != 2:
-            continue
-        start = _srt_to_ass_time(times[0].strip())
-        end   = _srt_to_ass_time(times[1].strip())
-        text  = " ".join(lines[2:]).upper()
-        # Bold + outline effect
-        text  = f"{{\\b1\\an2}}{text}"
-        events += f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}\n"
+
+        # Group 3 kata per baris
+        chunks = [words[i:i+3] for i in range(0, len(words), 3)]
+
+        for chunk in chunks:
+            if not chunk:
+                continue
+
+            for j, word in enumerate(chunk):
+                w_start = max(0, word["start"] - clip_start)
+                w_end   = max(0, word["end"]   - clip_start)
+
+                # Build line - kata aktif pakai Highlight style + lebih besar
+                line = ""
+                for k, w in enumerate(chunk):
+                    txt = w["word"].strip().upper()
+                    if k == j:
+                        # Kata aktif - kuning, lebih besar, bold
+                        line += f"{{\\c&H0000FFFF&\\fs110\\b1\\t(0,80,\\fscx120\\fscy120)\\t(80,160,\\fscx100\\fscy100)}}{txt}  "
+                    else:
+                        # Kata lain - warna normal, lebih kecil
+                        line += f"{{\\c{color}&\\fs85\\b1}}{txt}  "
+
+                events += f"Dialogue: 0,{_t(w_start)},{_t(w_end)},Word,,0,0,0,,{{\\an5}}{line.strip()}\n"
 
     with open(ass_path, "w", encoding="utf-8") as f:
         f.write(header + events)
 
-def _format_time(seconds):
-    h = int(seconds // 3600)
-    m = int((seconds % 3600) // 60)
-    s = int(seconds % 60)
-    ms = int((seconds % 1) * 1000)
-    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-
-def _srt_to_ass_time(srt_time):
-    srt_time = srt_time.replace(",", ".")
-    parts = srt_time.split(":")
-    h, m = parts[0], parts[1]
-    s = parts[2]
-    return f"{h}:{m}:{s}"
+def _t(seconds):
+    h  = int(seconds // 3600)
+    m  = int((seconds % 3600) // 60)
+    s  = int(seconds % 60)
+    cs = int((seconds % 1) * 100)
+    return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
