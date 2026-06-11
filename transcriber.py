@@ -1,7 +1,7 @@
 import os
 import json
 import whisper
-from config import CACHE_DIR, WHISPER_MODEL, WHISPER_LANGUAGE
+from config import CACHE_DIR, WHISPER_MODEL
 
 model = None
 
@@ -21,7 +21,6 @@ def transcribe_candidates(video_path: str, candidates: list) -> list:
         cache_file = f"{CACHE_DIR}transcripts/candidate_{i}.json"
         os.makedirs(f"{CACHE_DIR}transcripts", exist_ok=True)
 
-        # Pakai cache kalau udah ada
         if os.path.exists(cache_file):
             print(f"[TRANSCRIBER] Cache hit: candidate {i}")
             with open(cache_file) as f:
@@ -29,12 +28,14 @@ def transcribe_candidates(video_path: str, candidates: list) -> list:
         else:
             print(f"[TRANSCRIBER] Transcribing candidate {i+1}/{len(candidates)}...")
             segment_audio = _extract_segment(audio_path, candidate["start"], candidate["end"], i)
-            transcript = m.transcribe(segment_audio, language=WHISPER_LANGUAGE)
+            transcript = m.transcribe(segment_audio, word_timestamps=True)
 
             with open(cache_file, "w") as f:
                 json.dump(transcript, f, ensure_ascii=False, indent=2)
 
-        candidate["transcript"] = transcript["text"].strip()
+        candidate["transcript"]       = transcript["text"].strip()
+        candidate["language"]         = transcript.get("language", "id")
+        candidate["whisper_segments"] = transcript.get("segments", [])
         results.append(candidate)
 
     print(f"[TRANSCRIBER] Done: {len(results)} candidates transcribed")
