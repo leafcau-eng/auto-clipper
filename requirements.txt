@@ -1,6 +1,6 @@
-librosa
 yt-dlp
-openai-whisper
 requests
+librosa
 numpy
-ffmpeg-python
+opencv-python-headless
+openai-whisper

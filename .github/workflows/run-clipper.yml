@@ -25,6 +25,30 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Cache Whisper model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/whisper
+          key: ${{ runner.os }}-whisper-small
+          restore-keys: |
+            ${{ runner.os }}-whisper-
+
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-ffmpeg-opencv
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
