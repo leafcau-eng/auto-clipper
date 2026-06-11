@@ -43,7 +43,7 @@ def get_subtitle_position(video_path: str) -> int:
 
 def burn_subtitles(video_path: str, candidate: dict, output_path: str) -> str:
     segments   = candidate.get("whisper_segments", [])
-    clip_start = candidate.get("start", 0)
+    clip_start = candidate.get("clip_offset", 0)
 
     if not segments:
         print("[SUBTITLE] No segments, skipping")
