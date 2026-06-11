@@ -1,15 +1,15 @@
 import os
 import json
 import whisper
-from config import CACHE_DIR, WHISPER_MODEL
+from config import CACHE_DIR
 
 model = None
 
 def load_model():
     global model
     if model is None:
-        print(f"[TRANSCRIBER] Loading Whisper model: {WHISPER_MODEL}")
-        model = whisper.load_model(WHISPER_MODEL)
+        print(f"[TRANSCRIBER] Loading Whisper model: small")
+        model = whisper.load_model("small")
     return model
 
 def transcribe_candidates(video_path: str, candidates: list) -> list:
@@ -27,15 +27,29 @@ def transcribe_candidates(video_path: str, candidates: list) -> list:
                 transcript = json.load(f)
         else:
             print(f"[TRANSCRIBER] Transcribing candidate {i+1}/{len(candidates)}...")
-            segment_audio = _extract_segment(audio_path, candidate["start"], candidate["end"], i)
-            transcript = m.transcribe(segment_audio, word_timestamps=True)
+            # Extract segment audio dulu - timestamp mulai dari 0
+            segment_audio = _extract_segment(
+                audio_path,
+                candidate["start"],
+                candidate["end"],
+                i
+            )
+            # Transcribe segment yang udah di-extract
+            # Timestamp otomatis mulai dari 0 karena audio udah dipotong
+            transcript = m.transcribe(
+                segment_audio,
+                word_timestamps=True,
+                language=None  # auto detect
+            )
 
             with open(cache_file, "w") as f:
                 json.dump(transcript, f, ensure_ascii=False, indent=2)
 
-        candidate["transcript"]       = transcript["text"].strip()
-        candidate["language"]         = transcript.get("language", "id")
-        candidate["whisper_segments"] = transcript.get("segments", [])
+        candidate["transcript"]        = transcript["text"].strip()
+        candidate["language"]          = transcript.get("language", "id")
+        candidate["whisper_segments"]  = transcript.get("segments", [])
+        # Set clip_start ke 0 karena audio udah dipotong per segment
+        candidate["clip_offset"]       = 0
         results.append(candidate)
 
     print(f"[TRANSCRIBER] Done: {len(results)} candidates transcribed")
