@@ -18,8 +18,7 @@ def download_video(url: str) -> str:
         "quiet": False,
         "extractor_args": {
             "youtube": {
-                "player_client": ["web", "android", "ios"],
-                "player_skip": ["webpage", "configs"],
+                "player_client": ["tv_embedded", "web_creator"],
             }
         },
     }
@@ -37,7 +36,6 @@ def download_video(url: str) -> str:
                     print(f"[DOWNLOADER] Downloaded: {path}")
                     return path
     except Exception as e:
-        print(f"[DOWNLOADER] Failed: {e}")
         raise Exception(f"Download failed: {e}")
 
 def get_video_duration(video_path: str) -> float:
