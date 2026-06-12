@@ -7,7 +7,7 @@ from transcriber import transcribe_candidates
 from viral_ranker import rank_candidates
 from exporter import export_clips
 
-WEBHOOK_URL = "https://sch-web-cliper.vercel.app/api/webhook"
+WEBHOOK_URL = "https://ai-creator-hub-zeta.vercel.app/api/webhook"
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
 def send_webhook(project_id, status, clips=None, current_step=None, error_message=None):
