@@ -9,6 +9,9 @@ from exporter import export_clips
 
 WEBHOOK_URL = "https://ai-creator-hub-zeta.vercel.app/api/webhook"
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+
 
 def send_webhook(project_id, status, clips=None, current_step=None, error_message=None):
     if not project_id:
@@ -37,6 +40,46 @@ def send_webhook(project_id, status, clips=None, current_step=None, error_messag
         print(f"[WEBHOOK] Sent: {status}")
     except Exception as e:
         print(f"[WEBHOOK] Failed: {e}")
+
+
+def upload_clip_to_storage(file_path: str, project_id: str, clip_index: int) -> str | None:
+    """
+    Upload clip ke Supabase Storage bucket 'assets'.
+    Return public URL kalau sukses, None kalau gagal.
+    Path: clips/{project_id}/clip_{clip_index}.mp4
+    """
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        print(f"[STORAGE] Skipped — SUPABASE_URL or SUPABASE_SERVICE_KEY not set")
+        return None
+
+    if not os.path.exists(file_path):
+        print(f"[STORAGE] File not found: {file_path}")
+        return None
+
+    try:
+        from supabase import create_client
+        supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+        storage_path = f"clips/{project_id}/clip_{clip_index}.mp4"
+
+        with open(file_path, "rb") as f:
+            supabase.storage.from_("assets").upload(
+                path=storage_path,
+                file=f,
+                file_options={"content-type": "video/mp4", "upsert": "true"}
+            )
+
+        # Ambil public URL
+        result = supabase.storage.from_("assets").get_public_url(storage_path)
+        public_url = result if isinstance(result, str) else result.get("publicUrl")
+
+        print(f"[STORAGE] Uploaded clip_{clip_index}: {public_url}")
+        return public_url
+
+    except Exception as e:
+        print(f"[STORAGE] Upload failed for clip_{clip_index}: {e}")
+        return None
+
 
 def run(url: str, project_id: str = None):
     print("=" * 50)
@@ -73,26 +116,46 @@ def run(url: str, project_id: str = None):
         print("\n[STEP 5] Exporting top clips...")
         exported = export_clips(video_path, top_clips)
 
-        # Format clips buat webhook
-        clips_data = [{
-            "title": f"Clip {c['rank']}",
-            "duration": c["end"] - c["start"],
-            "start": c["start"],
-            "end": c["end"],
-            "file_url": None,
-            "thumbnail_url": None,
-        } for c in exported]
+        # STEP 6 - Upload ke Supabase Storage
+        send_webhook(project_id, "processing", current_step="uploading")
+        print("\n[STEP 6] Uploading clips to storage...")
+
+        clips_data = []
+        for i, c in enumerate(exported):
+            file_url = None
+
+            if project_id:
+                file_url = upload_clip_to_storage(
+                    file_path=c["file"],
+                    project_id=project_id,
+                    clip_index=i + 1
+                )
+
+            clips_data.append({
+                "title": f"Clip {c['rank']}",
+                "duration": c["end"] - c["start"],
+                "start": c["start"],
+                "end": c["end"],
+                "file_url": file_url,        # ← sekarang terisi kalau upload sukses
+                "thumbnail_url": None,        # thumbnail bisa ditambah nanti
+                "score": c.get("score"),
+                "hook": c.get("hook", ""),
+                "reason": c.get("reason", ""),
+            })
 
         send_webhook(project_id, "completed", clips=clips_data)
 
         print("\n" + "=" * 50)
         print(f"   DONE! {len(exported)} clips exported")
+        uploaded = sum(1 for c in clips_data if c["file_url"])
+        print(f"   {uploaded}/{len(exported)} clips uploaded to storage")
         print("=" * 50)
 
     except Exception as e:
         print(f"\n[ERROR] {e}")
         send_webhook(project_id, "failed", error_message=str(e))
         sys.exit(1)
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -102,3 +165,4 @@ if __name__ == "__main__":
     url = sys.argv[1]
     project_id = sys.argv[2] if len(sys.argv) > 2 else None
     run(url, project_id)
+
