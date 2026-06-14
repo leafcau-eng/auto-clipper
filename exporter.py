@@ -6,6 +6,40 @@ from config import OUTPUT_DIR, CACHE_DIR
 from subtitle import burn_subtitles
 from cropper import crop_to_vertical
 
+
+def generate_thumbnail(video_path: str, duration: float, thumb_path: str) -> str | None:
+    """
+    Generate thumbnail JPG dari frame di pertengahan video (50% durasi).
+    Fallback minimal 0.5s kalau durasi sangat pendek.
+    Return path thumbnail kalau sukses, None kalau gagal.
+    Thumbnail adalah enhancement — kegagalan TIDAK menghentikan pipeline.
+    """
+    try:
+        timestamp = max(duration * 0.5, 0.5)
+        if timestamp >= duration:
+            timestamp = max(duration / 2, 0.1)
+
+        subprocess.run([
+            "ffmpeg",
+            "-ss", str(timestamp),
+            "-i", video_path,
+            "-frames:v", "1",
+            "-q:v", "2",
+            "-y",
+            thumb_path
+        ], check=True, capture_output=True)
+
+        if os.path.exists(thumb_path):
+            return thumb_path
+
+        print(f"[EXPORTER] Thumbnail not created (unknown reason): {thumb_path}")
+        return None
+
+    except Exception as e:
+        print(f"[EXPORTER] Thumbnail generation failed (non-fatal): {e}")
+        return None
+
+
 def export_clips(video_path: str, top_candidates: list) -> list:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -49,6 +83,11 @@ def export_clips(video_path: str, top_candidates: list) -> list:
             if os.path.exists(f) and f != final_path:
                 os.remove(f)
 
+        # STEP 4 - Generate thumbnail (non-fatal kalau gagal)
+        print(f"[EXPORTER] Generating thumbnail...")
+        thumb_file = final_path.rsplit(".", 1)[0] + "_thumb.jpg"
+        thumbnail_file = generate_thumbnail(final_path, duration, thumb_file)
+
         meta = {
             "rank"             : i + 1,
             "score"            : score,
@@ -59,7 +98,8 @@ def export_clips(video_path: str, top_candidates: list) -> list:
             "hook"             : candidate.get("hook", ""),
             "emotional_trigger": candidate.get("emotional_trigger", ""),
             "transcript"       : candidate.get("transcript", ""),
-            "file"             : final_path
+            "file"             : final_path,
+            "thumbnail_file"   : thumbnail_file
         }
 
         meta_file = final_path.replace(".mp4", ".json")

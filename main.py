@@ -81,6 +81,44 @@ def upload_clip_to_storage(file_path: str, project_id: str, clip_index: int) -> 
         return None
 
 
+def upload_thumbnail_to_storage(file_path: str | None, project_id: str, clip_index: int) -> str | None:
+    """
+    Upload thumbnail JPG ke Supabase Storage bucket 'assets'.
+    Return public URL kalau sukses, None kalau gagal/tidak ada file.
+    Path: clips/{project_id}/clip_{clip_index}_thumb.jpg
+    Non-fatal: kegagalan tidak menghentikan pipeline.
+    """
+    if not file_path or not os.path.exists(file_path):
+        return None
+
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        print(f"[STORAGE] Thumbnail skipped — SUPABASE_URL or SUPABASE_SERVICE_KEY not set")
+        return None
+
+    try:
+        from supabase import create_client
+        supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+        storage_path = f"clips/{project_id}/clip_{clip_index}_thumb.jpg"
+
+        with open(file_path, "rb") as f:
+            supabase.storage.from_("assets").upload(
+                path=storage_path,
+                file=f,
+                file_options={"content-type": "image/jpeg", "upsert": "true"}
+            )
+
+        result = supabase.storage.from_("assets").get_public_url(storage_path)
+        public_url = result if isinstance(result, str) else result.get("publicUrl")
+
+        print(f"[STORAGE] Uploaded thumbnail clip_{clip_index}: {public_url}")
+        return public_url
+
+    except Exception as e:
+        print(f"[STORAGE] Thumbnail upload failed for clip_{clip_index} (non-fatal): {e}")
+        return None
+
+
 def run(url: str, project_id: str = None):
     print("=" * 50)
     print("   AUTO-CLIPPER V2")
@@ -123,10 +161,16 @@ def run(url: str, project_id: str = None):
         clips_data = []
         for i, c in enumerate(exported):
             file_url = None
+            thumbnail_url = None
 
             if project_id:
                 file_url = upload_clip_to_storage(
                     file_path=c["file"],
+                    project_id=project_id,
+                    clip_index=i + 1
+                )
+                thumbnail_url = upload_thumbnail_to_storage(
+                    file_path=c.get("thumbnail_file"),
                     project_id=project_id,
                     clip_index=i + 1
                 )
@@ -136,8 +180,8 @@ def run(url: str, project_id: str = None):
                 "duration": c["end"] - c["start"],
                 "start": c["start"],
                 "end": c["end"],
-                "file_url": file_url,        # ← sekarang terisi kalau upload sukses
-                "thumbnail_url": None,        # thumbnail bisa ditambah nanti
+                "file_url": file_url,
+                "thumbnail_url": thumbnail_url,
                 "score": c.get("score"),
                 "hook": c.get("hook", ""),
                 "reason": c.get("reason", ""),
