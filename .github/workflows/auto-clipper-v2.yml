@@ -30,6 +30,11 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
       - name: Cache pip dependencies
         uses: actions/cache@v4
         with:
@@ -61,7 +66,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install yt-dlp requests librosa numpy opencv-python-headless
+          pip install -U "yt-dlp[default]" requests librosa numpy opencv-python-headless
           pip install git+https://github.com/openai/whisper.git
           pip install supabase
 
