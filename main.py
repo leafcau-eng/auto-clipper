@@ -187,7 +187,7 @@ def run(url: str, project_id: str = None):
                 "reason": c.get("reason", ""),
             })
 
-        send_webhook(project_id, "completed", clips=clips_data)
+        send_webhook(project_id, "done", clips=clips_data)
 
         print("\n" + "=" * 50)
         print(f"   DONE! {len(exported)} clips exported")
