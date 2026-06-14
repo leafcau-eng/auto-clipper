@@ -8,7 +8,7 @@ on:
         required: true
       project_id:
         description: 'Project ID'
-        required: false
+        required: true
       chat_id:
         description: 'Chat ID'
         required: false

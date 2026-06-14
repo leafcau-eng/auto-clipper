@@ -119,7 +119,10 @@ def upload_thumbnail_to_storage(file_path: str | None, project_id: str, clip_ind
         return None
 
 
-def run(url: str, project_id: str = None):
+def run(url: str, project_id: str):
+    if not project_id:
+        print("ERROR: project_id is required")
+        sys.exit(1)
     print("=" * 50)
     print("   AUTO-CLIPPER V2")
     print("=" * 50)
@@ -202,11 +205,13 @@ def run(url: str, project_id: str = None):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python main.py <url> [project_id]")
+    if len(sys.argv) < 3:
+        print("Usage: python main.py <url> <project_id>")
+        print("ERROR: project_id is required")
         sys.exit(1)
 
     url = sys.argv[1]
-    project_id = sys.argv[2] if len(sys.argv) > 2 else None
+    project_id = sys.argv[2]
     run(url, project_id)
+
 
